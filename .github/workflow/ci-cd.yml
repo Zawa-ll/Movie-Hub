@@ -6,28 +6,53 @@ on:
       - main
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      - name: Install dependencies
+      - name: Install AWS CLI
+        run: |
+          sudo apt-get install awscli
+          aws --version
+
+      - name: Configure AWS credentials
+        run: |
+          aws configure set aws_access_key_id ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws configure set aws_secret_access_key ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws configure set default.region ${{ secrets.AWS_REGION }}
+
+      - name: Install kubectl
+        run: |
+          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          chmod +x kubectl
+          sudo mv kubectl /usr/local/bin/
+          kubectl version --client
+
+      - name: Authenticate with AWS EKS
+        run: |
+          aws eks --region ${{ secrets.AWS_REGION }} update-kubeconfig --name eks-cluster-name
+
+      - name: Deploy to AWS EKS
         run: |
           cd movie-backend
-          npm install
+
+          docker build -t backend-image .
+
+          aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ecr-repository-url
+
+          docker push ecr-repository-url/movie-backend-image
+
+          kubectl apply -f backend-deployment.yaml
+
           cd ../movie-frontend
-          npm install
 
-      - name: Build and test movie-backend
-        run: |
-          cd movie-backend
-          npm test
-          # Add other build/test commands as needed
+          docker build -t movie-frontend-image .
 
-      - name: Build and test movie-frontend
-        run: |
-          cd movie-frontend
-          npm test
-          # Add other build/test commands as needed
+          aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ecr-repository-url
+
+          docker push ecr-repository-url/movie-frontend-image
+
+          kubectl apply -f frontend-deployment.yaml
