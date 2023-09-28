@@ -1,0 +1,33 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Install dependencies
+        run: |
+          cd movie-backend
+          npm install
+          cd ../movie-frontend
+          npm install
+
+      - name: Build and test movie-backend
+        run: |
+          cd movie-backend
+          npm test
+          # Add other build/test commands as needed
+
+      - name: Build and test movie-frontend
+        run: |
+          cd movie-frontend
+          npm test
+          # Add other build/test commands as needed
